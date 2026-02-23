@@ -19,3 +19,9 @@ def _run_objcopy():
 
 def _run_size():
   _run("arm-none-eabi-size")
+
+
+def smoketest():
+  import subprocess
+  gcc = os.path.join(TOOLCHAIN_DIR, "bin", "arm-none-eabi-gcc")
+  subprocess.run([gcc, "--version"], check=True)
