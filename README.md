@@ -11,8 +11,8 @@ this vendoring serves a few goals:
 - tighter control of distribution for fast installs (e.g. Ubuntu's `apt-get` is slow)
 
 we target the following platforms:
-- Linux x86_64 (glibc)
-- Linux aarch64 (glibc)
+- Linux x86_64
+- Linux aarch64
 - Darwin aarch64 (Apple Silicon)
 
 contributions welcome for other platforms!
