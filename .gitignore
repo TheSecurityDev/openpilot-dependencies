@@ -1,5 +1,6 @@
 .git/
 repo/
+.venv/
 
 # agents
 .claude/
@@ -9,16 +10,12 @@ TASK.md
 # build artifacts (applies to all packages)
 build/
 dist/
+install/
 *.egg-info/
 
 # downloaded toolchain binaries
 gcc-arm-none-eabi/gcc_arm_none_eabi/toolchain/
 
-# built capnproto
-capnproto/capnproto/install/
-
-# built ffmpeg
-ffmpeg/ffmpeg/install/
 
 # downloaded git-lfs
 git-lfs/git_lfs/bin/
