@@ -49,7 +49,6 @@ else
 fi
 
 chmod +x "$INSTALL_DIR/git-lfs"
-strip "$INSTALL_DIR/git-lfs" 2>/dev/null || true
 
 rm -f "$FILENAME"
 
