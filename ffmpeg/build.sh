@@ -54,7 +54,7 @@ PKG_CONFIG_PATH="$PREFIX/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}" \
   --disable-everything \
   --enable-encoder=libx264,aac,ffvhuff,rawvideo,png \
   --enable-decoder=h264,hevc,ffvhuff,aac,rawvideo,png,mjpeg,mp3,pcm_s16le \
-  --enable-muxer=mpegts,matroska,mp4,hevc,rawvideo,image2,null,mov \
+  --enable-muxer=mpegts,matroska,mp4,hevc,rawvideo,image2,null,mov,framehash \
   --enable-demuxer=hevc,matroska,mpegts,mov,rawvideo,image2,aac,concat \
   --enable-parser=h264,hevc,aac,mpegaudio \
   --enable-protocol=file,pipe \
