@@ -48,6 +48,7 @@ fi
   no-tests \
   no-docs \
   no-apps \
+  -fPIC \
   -Os
 
 # Build

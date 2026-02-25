@@ -31,7 +31,7 @@ PREFIX="$DIR/build/prefix"
 mkdir -p "$DIR/build"
 
 cd "ncurses-${VERSION}"
-./configure \
+CFLAGS="-fPIC" ./configure \
   --prefix="$PREFIX" \
   --without-shared \
   --with-normal \
