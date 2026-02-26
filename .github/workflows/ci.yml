@@ -1,0 +1,103 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+
+jobs:
+  build:
+    name: build (${{ matrix.platform }})
+    runs-on: ${{ matrix.runs-on }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux-x86_64
+            runs-on: ubuntu-latest
+          - platform: linux-arm64
+            runs-on: ubuntu-24.04-arm
+          - platform: macos
+            runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/cache@v4
+        with:
+          key: build-cache-v1-${{ matrix.platform }}-${{ hashFiles('build.sh', 'setup.sh', '*/pyproject.toml', '*/setup.py', '*/build.sh') }}
+          restore-keys: build-cache-v1-${{ matrix.platform }}-
+          path: |
+            .uv-cache
+            */*/install
+            */*/toolchain
+            */*/bin
+      - name: Build wheels
+        env:
+          MANYLINUX: ${{ runner.os == 'Linux' && '1' || '0' }}
+          UV_CACHE_DIR: ${{ github.workspace }}/.uv-cache
+          BUILD_SH_REUSE_MANYLINUX_ARTIFACTS: "1"
+        run: ./build.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheels-${{ matrix.platform }}
+          path: dist/*.whl
+
+  test:
+    name: test distro (${{ matrix.image }})
+    needs: build
+    runs-on: ${{ matrix.runs-on }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: debian:bookworm-slim
+            runs-on: ubuntu-latest
+          - image: ubuntu:24.04
+            runs-on: ubuntu-latest
+          - image: ubuntu:20.04
+            runs-on: ubuntu-latest
+          - image: fedora:41
+            runs-on: ubuntu-latest
+          - image: archlinux:latest
+            runs-on: ubuntu-latest
+          - image: opensuse/tumbleweed:latest
+            runs-on: ubuntu-latest
+          - image: ghcr.io/void-linux/void-glibc:latest
+            runs-on: ubuntu-latest
+          - image: debian:bookworm-slim
+            runs-on: ubuntu-24.04-arm
+          # TODO: add musl test
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ contains(matrix.runs-on, 'arm') && 'wheels-linux-arm64' || 'wheels-linux-x86_64' }}
+          path: dist/
+      - run: ./test_wheels_in_image.sh "${{ matrix.image }}"
+
+  publish:
+    name: publish wheels
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    needs: [build, test]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: wheels-*
+          merge-multiple: true
+          path: dist
+      - uses: actions/cache/restore@v4
+        with:
+          key: build-cache-v1-${{ matrix.platform }}-${{ hashFiles('build.sh', 'setup.sh', '*/pyproject.toml', '*/setup.py', '*/build.sh') }}
+          restore-keys: build-cache-v1-${{ matrix.platform }}-
+          path: |
+            .uv-cache
+            */*/install
+            */*/toolchain
+            */*/bin
+      - name: Publish wheels and shims
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: ./release.sh --publish-only
