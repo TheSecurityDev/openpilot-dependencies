@@ -1,6 +1,6 @@
 # dependencies
 
-a central repo for managing and [vendoring](https://htmx.org/essays/vendoring/) third party dependencies for all comma projects.
+a central repo for [vendoring](https://htmx.org/essays/vendoring/) all third party dependencies for comma projects.
 
 since all our projects are Python, we wrap each vendored dependency as a pip package. `git clone` and `uv sync` is all you need.
 
@@ -9,8 +9,7 @@ motivations for this approach
 - `apt-get` updates its packages on a schedule we don't control
 - `apt-get` package versions don't match `brew` versions
 - `apt-get` doesn't come with Arch Linux
-- `apt-get` doesn't always have the exact package we need
-- `apt-get` packages are often bloated
+- `apt-get` packages come with more than we need, bloating our project footprint 
 
 <!--
 this critically adds friction to adding dependencies to our project
@@ -27,6 +26,7 @@ we target the following platforms:
 
 contributions welcome for other platforms!
 
+<!--
 ## packages
 
 | package           | description                                                              |
@@ -36,13 +36,19 @@ contributions welcome for other platforms!
 | ffmpeg            | video encode and decode for openpilot                                    |
 | git-lfs           | for tracking large files in openpilot                                    |
 | zeromq            | bridging the openpilot IPC between different hosts                       |
+-->
 
 ## usage
 
 ```python
 dependencies = [
+  # use the releases branch for pre-built wheels
   "capnproto @ git+https://github.com/commaai/dependencies.git@releases#subdirectory=capnproto",
   "ffmpeg @ git+https://github.com/commaai/dependencies.git@releases#subdirectory=ffmpeg",
+
+  # use the master branch to build the package on pip install
+  "capnproto @ git+https://github.com/commaai/dependencies.git@master#subdirectory=capnproto",
+  "ffmpeg @ git+https://github.com/commaai/dependencies.git@master#subdirectory=ffmpeg",
 ]
 ```
 
