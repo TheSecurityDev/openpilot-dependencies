@@ -6,10 +6,17 @@ cd "$DIR"
 
 INSTALL_DIR="$DIR/raylib/install"
 
-# Idempotent: skip if already built
+# Idempotent: skip if already fully built
+# On x86_64 Linux, also require the offscreen variant
+NEED_OFFSCREEN=0
+if [[ "$(uname)" == "Linux" && "$(uname -m)" == "x86_64" ]]; then
+  NEED_OFFSCREEN=1
+fi
 if [ -f "$INSTALL_DIR/lib/libraylib.a" ]; then
-  echo "raylib already present, skipping build."
-  exit 0
+  if [ "$NEED_OFFSCREEN" -eq 0 ] || [ -f "$INSTALL_DIR/lib/libraylib_offscreen.a" ]; then
+    echo "raylib already present, skipping build."
+    exit 0
+  fi
 fi
 
 NJOBS="$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 2)"
