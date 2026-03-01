@@ -83,6 +83,18 @@ cp raylib-src/src/raylib.h raylib-src/src/raymath.h raylib-src/src/rlgl.h "$INST
 # On x86_64 Linux, also build the offscreen variant for CI headless rendering
 if [[ "$(uname)" == "Linux" && "$(uname -m)" == "x86_64" && "$RAYLIB_PLATFORM" != "PLATFORM_OFFSCREEN" ]]; then
   echo "Building offscreen variant..."
+
+  # Install EGL/GL dev packages needed for offscreen build + bundling
+  if command -v dnf &>/dev/null; then
+    dnf install -y mesa-libEGL-devel mesa-libGL-devel libglvnd-opengl libglvnd-core-devel 2>/dev/null || true
+  elif command -v apt-get &>/dev/null; then
+    if [ "$(id -u)" -eq 0 ]; then
+      apt-get update && apt-get install -y libegl-dev libgl-dev
+    else
+      sudo apt-get update && sudo apt-get install -y libegl-dev libgl-dev
+    fi
+  fi
+
   cd raylib-src/src
   make clean
   make -j"$NJOBS" PLATFORM=PLATFORM_OFFSCREEN
@@ -92,8 +104,9 @@ if [[ "$(uname)" == "Linux" && "$(uname -m)" == "x86_64" && "$RAYLIB_PLATFORM" !
   # Bundle GLVND dispatchers so offscreen rendering works without extra system packages
   MESA_DIR="$INSTALL_DIR/lib/mesa"
   mkdir -p "$MESA_DIR"
+  ldconfig 2>/dev/null || true
   for lib in libEGL.so.1 libOpenGL.so.0 libGLdispatch.so.0; do
-    src="$(ldconfig -p 2>/dev/null | grep "$lib" | grep 'x86-64' | awk '{print $NF}' | head -1)"
+    src="$(ldconfig -p 2>/dev/null | grep "$lib" | grep -E 'x86.64|libc6,' | awk '{print $NF}' | head -1)"
     if [ -n "$src" ] && [ -f "$src" ]; then
       cp -L "$src" "$MESA_DIR/"
       # Create unversioned symlink for the linker
