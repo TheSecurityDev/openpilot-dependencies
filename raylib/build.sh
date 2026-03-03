@@ -64,7 +64,7 @@ if [[ "$(uname)" == "Linux" ]]; then
 fi
 
 # Clone and build raylib C library
-RAYLIB_COMMIT="cd929df81a0a82ef699018d4c1cc9c5cf3fb7a12"
+RAYLIB_COMMIT="fc935750f92f8b93099597e8d0dbbf7d89b1f9f8"
 
 if [ ! -d "raylib-src" ]; then
   git clone -b fix-desktop-rotation-rects --no-tags https://github.com/TheSecurityDev/openpilot-raylib.git raylib-src
