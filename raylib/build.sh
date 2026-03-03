@@ -42,7 +42,7 @@ if [[ "$(uname)" == "Linux" ]]; then
     fi
   elif [ "$RAYLIB_PLATFORM" = "PLATFORM_OFFSCREEN" ]; then
     # offscreen (CI): needs EGL/GL dev packages (no X11)
-    if command -v apt-get &>/dev/null; then
+    if command -v apt-get &>/dev/null && ! dpkg -s libegl-dev libgl-dev >/dev/null 2>&1; then
       if [ "$(id -u)" -eq 0 ]; then
         apt-get update && apt-get install -y libegl-dev libgl-dev
       else
@@ -53,7 +53,7 @@ if [[ "$(uname)" == "Linux" ]]; then
     # desktop: needs X11/GL dev packages
     if command -v dnf &>/dev/null; then
       dnf install -y libX11-devel libXcursor-devel libXrandr-devel libXinerama-devel libXi-devel mesa-libGL-devel
-    elif command -v apt-get &>/dev/null; then
+    elif command -v apt-get &>/dev/null && ! dpkg -s libxcursor-dev libxi-dev libxinerama-dev libxrandr-dev libgl-dev >/dev/null 2>&1; then
       if [ "$(id -u)" -eq 0 ]; then
         apt-get update && apt-get install -y libxcursor-dev libxi-dev libxinerama-dev libxrandr-dev libgl-dev
       else
@@ -94,7 +94,7 @@ if [[ "$(uname)" == "Linux" && "$(uname -m)" == "x86_64" && "$RAYLIB_PLATFORM" !
   # Install EGL/GL dev packages needed for offscreen build + bundling
   if command -v dnf &>/dev/null; then
     dnf install -y mesa-libEGL-devel mesa-libGL-devel libglvnd-opengl libglvnd-core-devel 2>/dev/null || true
-  elif command -v apt-get &>/dev/null; then
+  elif command -v apt-get &>/dev/null && ! dpkg -s libegl-dev libgl-dev >/dev/null 2>&1; then
     if [ "$(id -u)" -eq 0 ]; then
       apt-get update && apt-get install -y libegl-dev libgl-dev
     else
