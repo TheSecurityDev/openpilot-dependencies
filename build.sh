@@ -45,9 +45,14 @@ if [[ -n "${BUILD_SH_IN_MANYLINUX:-}" ]]; then
   fi
 fi
 
+export CMAKE_C_COMPILER_LAUNCHER=ccache
+export CMAKE_CXX_COMPILER_LAUNCHER=ccache
+
 echo "Building workspace packages into dist"
 START_SECS=$SECONDS
 
+mkdir -p dist/
+rm -rf dist/*
 uv build --all-packages --wheel --out-dir dist --no-create-gitignore --no-build-logs
 
 if [[ -n "${BUILD_SH_IN_MANYLINUX:-}" ]]; then

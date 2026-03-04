@@ -4,25 +4,25 @@ set -e
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null && pwd)"
 cd "$DIR"
 
-VERSION="3.4.1"
+VERSION="openssl-3.4.1"
 INSTALL_DIR="$DIR/openssl3/install"
 
-# Idempotent: skip if already built
-if [ -f "$INSTALL_DIR/lib/libcrypto.a" ]; then
-  echo "openssl already present, skipping build."
+NJOBS="$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 2)"
+export CC="ccache ${CC:-cc}"
+
+# Clone/update source
+if [ ! -d "openssl-src/.git" ]; then
+  rm -rf openssl-src
+  git clone --depth 1 https://github.com/openssl/openssl.git openssl-src
+fi
+git -C openssl-src fetch --depth 1 origin "$VERSION"
+WANT_COMMIT="$(git -C openssl-src rev-parse FETCH_HEAD)"
+VERSION_FILE="$INSTALL_DIR/.version"
+if [ -f "$VERSION_FILE" ] && [ "$(cat "$VERSION_FILE")" = "$WANT_COMMIT" ]; then
+  echo "openssl already at $VERSION, skipping build."
   exit 0
 fi
-
-NJOBS="$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 2)"
-
-# Download
-TARBALL="openssl-${VERSION}.tar.gz"
-if [ ! -d "openssl-src" ]; then
-  curl -fSL -o "$TARBALL" "https://github.com/openssl/openssl/releases/download/openssl-${VERSION}/${TARBALL}"
-  mkdir -p openssl-src
-  tar -xf "$TARBALL" -C openssl-src --strip-components=1
-  rm -f "$TARBALL"
-fi
+git -C openssl-src checkout --force FETCH_HEAD
 
 # Configure
 PREFIX="$DIR/build/prefix"
@@ -68,8 +68,6 @@ cp "$PREFIX/lib/libssl.a" "$INSTALL_DIR/lib/"
 # Headers
 cp -r "$PREFIX/include/openssl" "$INSTALL_DIR/include/"
 
-# Clean up
-rm -rf openssl-src "$DIR/build"
-
+echo "$WANT_COMMIT" > "$VERSION_FILE"
 echo "Installed openssl to $INSTALL_DIR"
 du -sh "$INSTALL_DIR"
