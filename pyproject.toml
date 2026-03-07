@@ -12,7 +12,6 @@ members = [
   "libjpeg",
   "libyuv",
   "ncurses",
-  "openssl3",
   "python3-dev",
   "raylib",
   "zeromq",
