@@ -6,31 +6,25 @@ cd "$DIR"
 
 VERSION="6.5"
 INSTALL_DIR="$DIR/ncurses/install"
-
-# Idempotent: skip if already built
-if [ -f "$INSTALL_DIR/lib/libncurses.a" ]; then
-  echo "ncurses already present, skipping build."
-  exit 0
-fi
+VERSION_FILE="$DIR/ncurses-src/.version"
 
 NJOBS="$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 2)"
+export CC="ccache ${CC:-cc}"
 
-# Download
-TARBALL="ncurses-${VERSION}.tar.gz"
-if [ ! -f "$TARBALL" ]; then
-  curl -fsSL "https://ftp.gnu.org/gnu/ncurses/${TARBALL}" -o "$TARBALL"
-fi
-
-# Extract
-if [ ! -d "ncurses-${VERSION}" ]; then
-  tar xf "$TARBALL"
+# Download tarball (v6.5 tag doesn't exist on the GitHub mirror)
+if [ ! -f "$VERSION_FILE" ] || [ "$(cat "$VERSION_FILE")" != "$VERSION" ]; then
+  rm -rf ncurses-src
+  mkdir -p ncurses-src
+  curl -fSL "https://ftp.gnu.org/gnu/ncurses/ncurses-${VERSION}.tar.gz" \
+    | tar xz --strip-components=1 -C ncurses-src
+  echo "$VERSION" > "$VERSION_FILE"
 fi
 
 # Build
 PREFIX="$DIR/build/prefix"
 mkdir -p "$DIR/build"
 
-cd "ncurses-${VERSION}"
+cd ncurses-src
 CFLAGS="-fPIC" ./configure \
   --prefix="$PREFIX" \
   --without-shared \
@@ -65,9 +59,6 @@ cp "$PREFIX/include/ncurses_dll.h" "$INSTALL_DIR/include/"
 cp "$PREFIX/include/unctrl.h" "$INSTALL_DIR/include/"
 cp "$PREFIX/include/term.h" "$INSTALL_DIR/include/"
 cp "$PREFIX/include/termcap.h" "$INSTALL_DIR/include/"
-
-# Clean up
-rm -rf "ncurses-${VERSION}" "$TARBALL" "$DIR/build"
 
 echo "Installed ncurses to $INSTALL_DIR"
 du -sh "$INSTALL_DIR"
