@@ -11,8 +11,7 @@ NJOBS="$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 2)"
 IMGUI_COMMIT="934c6a5f5ef2355d6df25395d555cb71f790c4e9"
 # ImPlot
 IMPLOT_COMMIT="93c801b4bb801c5c11031d880b6af1d1f70bd79d"
-# rlImGui
-RLIMGUI_COMMIT="286e11acd6c785004c9550c7ed3762add2ae3d47"
+
 # GLFW 3.4
 GLFW_COMMIT="7b6aead9fb88b3623e3b3725ebb42670cbe4c579"
 
@@ -31,14 +30,6 @@ if [ ! -d "implot-src/.git" ]; then
 fi
 git -C implot-src fetch --depth 1 origin "$IMPLOT_COMMIT"
 git -C implot-src checkout --force "$IMPLOT_COMMIT"
-
-# Clone/update rlimgui
-if [ ! -d "rlimgui-src/.git" ]; then
-  rm -rf rlimgui-src
-  git clone --depth 1 https://github.com/raylib-extras/rlImGui.git rlimgui-src
-fi
-git -C rlimgui-src fetch --depth 1 origin "$RLIMGUI_COMMIT"
-git -C rlimgui-src checkout --force "$RLIMGUI_COMMIT"
 
 # Clone/update GLFW
 if [ ! -d "glfw-src/.git" ]; then
@@ -73,37 +64,45 @@ cmake -B glfw-src/build -S glfw-src \
   -DGLFW_BUILD_DOCS=OFF
 cmake --build glfw-src/build --parallel "$NJOBS"
 
-# Install
+# Install headers
 rm -rf "$INSTALL_DIR"
-mkdir -p "$INSTALL_DIR/include/extras" "$INSTALL_DIR/src" "$INSTALL_DIR/lib"
+mkdir -p "$INSTALL_DIR/include" "$INSTALL_DIR/lib"
 
-# imgui
+# imgui headers
 cp imgui-src/imgui.h imgui-src/imgui_internal.h imgui-src/imconfig.h \
    imgui-src/imstb_rectpack.h imgui-src/imstb_textedit.h imgui-src/imstb_truetype.h \
    "$INSTALL_DIR/include/"
-cp imgui-src/imgui.cpp imgui-src/imgui_draw.cpp imgui-src/imgui_tables.cpp \
-   imgui-src/imgui_widgets.cpp imgui-src/imgui_demo.cpp \
-   "$INSTALL_DIR/src/"
 cp imgui-src/backends/imgui_impl_opengl3.h imgui-src/backends/imgui_impl_opengl3_loader.h \
    imgui-src/backends/imgui_impl_glfw.h \
    "$INSTALL_DIR/include/"
-cp imgui-src/backends/imgui_impl_opengl3.cpp imgui-src/backends/imgui_impl_glfw.cpp \
-   "$INSTALL_DIR/src/"
 
-# implot
+# implot headers
 cp implot-src/implot.h implot-src/implot_internal.h "$INSTALL_DIR/include/"
-cp implot-src/implot.cpp implot-src/implot_items.cpp "$INSTALL_DIR/src/"
-
-# rlimgui
-cp rlimgui-src/rlImGui.h rlimgui-src/rlImGuiColors.h rlimgui-src/imgui_impl_raylib.h \
-   "$INSTALL_DIR/include/"
-cp rlimgui-src/extras/FA6FreeSolidFontData.h rlimgui-src/extras/IconsFontAwesome6.h \
-   "$INSTALL_DIR/include/extras/"
-cp rlimgui-src/rlImGui.cpp "$INSTALL_DIR/src/"
 
 # glfw
 cp glfw-src/build/src/libglfw3.a "$INSTALL_DIR/lib/"
 cp -r glfw-src/include/GLFW "$INSTALL_DIR/include/"
+
+# Build libimgui.a (imgui core + backends + implot)
+IMGUI_SRCS=(
+  imgui-src/imgui.cpp
+  imgui-src/imgui_draw.cpp
+  imgui-src/imgui_tables.cpp
+  imgui-src/imgui_widgets.cpp
+  imgui-src/imgui_demo.cpp
+  imgui-src/backends/imgui_impl_opengl3.cpp
+  imgui-src/backends/imgui_impl_glfw.cpp
+  implot-src/implot.cpp
+  implot-src/implot_items.cpp
+)
+OBJ_DIR="$(mktemp -d)"
+for src in "${IMGUI_SRCS[@]}"; do
+  obj="$OBJ_DIR/$(basename "${src%.cpp}.o")"
+  c++ -c -O2 -fPIC -I"$INSTALL_DIR/include" "$src" -o "$obj" &
+done
+wait
+ar rcs "$INSTALL_DIR/lib/libimgui.a" "$OBJ_DIR"/*.o
+rm -rf "$OBJ_DIR"
 
 # Bundle GLVND dispatchers so Linux users don't need system libGL
 if [[ "$(uname)" == "Linux" ]]; then
