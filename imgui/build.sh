@@ -105,5 +105,21 @@ cp rlimgui-src/rlImGui.cpp "$INSTALL_DIR/src/"
 cp glfw-src/build/src/libglfw3.a "$INSTALL_DIR/lib/"
 cp -r glfw-src/include/GLFW "$INSTALL_DIR/include/"
 
+# Bundle GLVND dispatchers so Linux users don't need system libGL
+if [[ "$(uname)" == "Linux" ]]; then
+  MESA_DIR="$INSTALL_DIR/lib/mesa"
+  mkdir -p "$MESA_DIR"
+  ldconfig 2>/dev/null || true
+  for lib in libGL.so.1 libGLX.so.0 libEGL.so.1 libOpenGL.so.0 libGLdispatch.so.0; do
+    src="$(ldconfig -p 2>/dev/null | grep -F "$lib" | awk '{print $NF}' | head -1)"
+    if [ -n "$src" ] && [ -f "$src" ]; then
+      cp -L "$src" "$MESA_DIR/"
+      # Create unversioned symlink for the linker
+      base="${lib%%.so.*}"
+      ln -sf "$lib" "$MESA_DIR/${base}.so"
+    fi
+  done
+fi
+
 echo "Installed imgui to $INSTALL_DIR"
 du -sh "$INSTALL_DIR"
