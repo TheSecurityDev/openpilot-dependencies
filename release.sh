@@ -66,7 +66,8 @@ for toml in sorted(pathlib.Path(".").glob("*/pyproject.toml")):
     shutil.copy2(py_file, mod_dir / py_file.name)
 
   # copy extra packages (e.g. pyray for raylib)
-  include_patterns = data.get("tool", {}).get("setuptools", {}).get("packages", {}).get("find", {}).get("include", [])
+  pkgs_val = data.get("tool", {}).get("setuptools", {}).get("packages", {})
+  include_patterns = pkgs_val.get("find", {}).get("include", []) if isinstance(pkgs_val, dict) else []
   extra_packages = []
   for pattern in include_patterns:
     p = pattern.rstrip("*")
