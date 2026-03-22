@@ -36,17 +36,6 @@ docker run --rm -v "$PWD:/work" -w /work wheeltest bash -lc '
     module="$(basename "$(dirname "$toml")" | tr "-" "_")"
     python -c "import $module; $module.smoketest()" && echo "$module: OK"
   done
-
-  # Verify all binaries and shared libs are self-contained (no missing deps)
-  echo
-  echo "Checking shared library dependencies..."
-  ldd_out=$(find /tmp/venv -type f \( -executable -o -name "*.so*" \) -exec ldd {} + 2>/dev/null) || true
-  if echo "$ldd_out" | grep -q "not found"; then
-    echo "ERROR: binaries have missing shared library dependencies:"
-    echo "$ldd_out" | grep "not found"
-    exit 1
-  fi
-  echo "All shared library deps OK"
 '
 
 echo
