@@ -68,6 +68,7 @@ echo
 echo "Running smoketests"
 
 uv venv --allow-existing --quiet "$VENV_DIR"
+uv pip install --python "$VENV_DIR/bin/python" --quiet "cffi>=1.17.1" >/dev/null
 uv pip install --python "$VENV_DIR/bin/python" --reinstall --no-deps --quiet dist/*.whl >/dev/null
 
 for toml in */pyproject.toml; do

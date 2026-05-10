@@ -1,71 +1,45 @@
+import importlib
 import os
-import platform as _platform
+
+from ._backend import BACKEND_ARCHIVES, BACKEND_CFFI_MODULES, detect_backend, is_dual_backend_host
+from .version import __version__
 
 DIR = os.path.join(os.path.dirname(__file__), "install")
-LIB_DIR = os.path.join(DIR, "lib")
 INCLUDE_DIR = os.path.join(DIR, "include")
+LIB_DIR = os.path.join(DIR, "lib")
+
+_BACKEND = detect_backend()
 
 
-def _detect_platform():
-  """Auto-detect the raylib platform. In CI on Linux x86_64, use offscreen EGL rendering."""
-  explicit = os.environ.get("RAYLIB_PLATFORM", "")
-  if explicit:
-    return explicit
-  if os.environ.get("CI") and _platform.system() == "Linux" and _platform.machine() == "x86_64":
-    return "PLATFORM_OFFSCREEN"
-  return ""
+def _expected_archives():
+  if is_dual_backend_host():
+    return BACKEND_ARCHIVES.values()
+  return (BACKEND_ARCHIVES[_BACKEND],)
 
 
 def smoketest():
-  assert os.path.isfile(os.path.join(LIB_DIR, "libraylib.a")), "libraylib.a not found"
-  assert os.path.isfile(os.path.join(INCLUDE_DIR, "raylib.h")), "raylib.h not found"
+  assert ffi is not None
+  assert rl is not None
+  for header in ("raylib.h", "raymath.h", "rlgl.h", "raygui.h"):
+    assert os.path.isfile(os.path.join(INCLUDE_DIR, header)), f"{header} not found"
+  for archive in _expected_archives():
+    assert os.path.isfile(os.path.join(LIB_DIR, archive)), f"{archive} not found"
 
 
-# Build CFFI extension on first import if not already compiled,
-# or rebuild if the target platform changed since last build.
-def _ensure_cffi_built():
-  import glob
-  import subprocess
-  import sys
-  pkg_dir = os.path.dirname(__file__)
-  platform_marker = os.path.join(pkg_dir, ".raylib_platform")
-  requested = _detect_platform()
+def _load_cffi():
+  backend_module = BACKEND_CFFI_MODULES[_BACKEND]
+  try:
+    return importlib.import_module(f".{backend_module}", __name__)
+  except (ImportError, OSError) as e:
+    raise ImportError(f"failed to load raylib {_BACKEND} backend extension {backend_module}") from e
 
-  # Export so build.py picks it up
-  if requested:
-    os.environ["RAYLIB_PLATFORM"] = requested
-    # Mesa llvmpipe for software rendering in headless CI
-    if requested == "PLATFORM_OFFSCREEN":
-      os.environ.setdefault("LIBGL_ALWAYS_SOFTWARE", "1")
 
-  cffi_files = glob.glob(os.path.join(pkg_dir, "_raylib_cffi*"))
-
-  # Rebuild if platform changed
-  if cffi_files and requested:
-    built_for = open(platform_marker).read().strip() if os.path.isfile(platform_marker) else ""
-    if built_for != requested:
-      for f in cffi_files:
-        os.remove(f)
-      cffi_files = []
-
-  if not cffi_files:
-    build_script = os.path.join(pkg_dir, "build.py")
-    if os.path.isfile(build_script) and os.path.isfile(os.path.join(LIB_DIR, "libraylib.a")):
-      try:
-        subprocess.check_call([sys.executable, build_script], cwd=os.path.dirname(pkg_dir))
-        with open(platform_marker, "w") as f:
-          f.write(requested)
-      except subprocess.CalledProcessError:
-        pass
-
-_ensure_cffi_built()
-
-# CFFI bindings (available when graphics libraries are present)
-try:
-  from ._raylib_cffi import ffi, lib as rl
-  from raylib._raylib_cffi.lib import *  # noqa: F403
-  from raylib.colors import *  # noqa: F403
-  from raylib.defines import *  # noqa: F403
-  from .version import __version__
-except (ImportError, OSError):
-  pass
+_cffi = _load_cffi()
+ffi, rl = _cffi.ffi, _cffi.lib
+# Module name is dynamic per backend, so we can't use `from ._raylib_cffi_X.lib import *`.
+for _name in dir(rl):
+  if not _name.startswith("_"):
+    globals()[_name] = getattr(rl, _name)
+del _name
+from raylib.colors import *  # noqa: F403, E402
+from raylib.defines import *  # noqa: F403, E402
