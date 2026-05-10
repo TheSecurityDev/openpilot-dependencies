@@ -27,3 +27,12 @@ gcc-arm-none-eabi/gcc_arm_none_eabi/toolchain/
 
 # downloaded git-lfs
 git-lfs/git_lfs/bin/
+
+# downloaded mdbook
+mdbook/mdbook/bin/
+
+# vendored at build time
+acados/acados/acados_template/
+acados/casadi/
+acados/casadi-venv/
+acados/casadi-wheel/

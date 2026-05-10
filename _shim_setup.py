@@ -25,6 +25,17 @@ DATADIR = _cfg["tool"]["shim"]["datadir"]
 VERSION = _cfg["project"]["version"]
 MODULE = _cfg["project"]["name"].replace("-", "_")
 
+# all top-level packages bundled in this wheel (e.g. acados + casadi).
+# `packages` may be a flat list or a dict with find.include patterns.
+_pkgs = _cfg.get("tool", {}).get("setuptools", {}).get("packages", [f"{MODULE}*"])
+if isinstance(_pkgs, list):
+  _INCLUDE = _pkgs
+elif isinstance(_pkgs, dict):
+  _INCLUDE = _pkgs.get("find", {}).get("include", [f"{MODULE}*"])
+else:
+  _INCLUDE = [f"{MODULE}*"]
+TOP_PACKAGES = sorted({p.rstrip("*").rstrip("/") for p in _INCLUDE if p.rstrip("*").rstrip("/")})
+
 PLATFORM_MAP = {
   ("Linux", "x86_64"): "linux_x86_64",
   ("Linux", "aarch64"): "linux_aarch64",
@@ -43,59 +54,52 @@ class InstallPrebuilt(build_py):
       if plat is None:
         raise RuntimeError(f"unsupported platform: {key}")
 
-      whl_name = f"{MODULE}-{VERSION}-py3-none-{plat}.whl"
-      url = f"{REPO_URL}/releases/download/{TAG}/{whl_name}"
+      whl_names = [
+        f"{MODULE}-{VERSION}-py3-none-{plat}.whl",
+        f"{MODULE}-{VERSION}-py3-none-any.whl",
+      ]
 
-      print(f"Downloading {url} ...")
-      for attempt in range(3):
-        try:
-          raw = urlopen(url, timeout=60).read()
+      raw = None
+      for whl_name in whl_names:
+        url = f"{REPO_URL}/releases/download/{TAG}/{whl_name}"
+        print(f"Downloading {url} ...")
+        for attempt in range(3):
+          try:
+            raw = urlopen(url, timeout=60).read()
+            break
+          except (URLError, OSError) as e:
+            if attempt == 2:
+              if whl_name == whl_names[-1]:
+                raise
+              break
+            wait = 2 ** attempt
+            print(f"Download failed ({e}), retrying in {wait}s ...")
+            time.sleep(wait)
+        if raw is not None:
           break
-        except (URLError, OSError) as e:
-          if attempt == 2:
-            raise
-          wait = 2 ** attempt
-          print(f"Download failed ({e}), retrying in {wait}s ...")
-          time.sleep(wait)
 
-      print(f"Extracting {DATADIR} ...")
+      print("Extracting wheel ...")
       with zipfile.ZipFile(BytesIO(raw)) as zf:
-        prefix = f"{MODULE}/{DATADIR}/"
-        alt_prefix = f"{MODULE}-{VERSION}.data/purelib/{MODULE}/{DATADIR}/"
+        purelib_data = f"{MODULE}-{VERSION}.data/purelib/"
         for info in zf.infolist():
-          for p in (prefix, alt_prefix):
-            if info.filename.startswith(p):
-              rel = info.filename[len(p):]
-              if not rel:
-                continue
-              dest = os.path.join(data_dir, rel)
-              if info.is_dir():
-                os.makedirs(dest, exist_ok=True)
-              else:
-                os.makedirs(os.path.dirname(dest), exist_ok=True)
-                with open(dest, "wb") as f:
-                  f.write(zf.read(info))
-                if info.external_attr >> 16 & 0o111:
-                  os.chmod(dest, 0o755)
-              break
-
-        # Also extract compiled extension modules (.so)
-        ext_prefix = f"{MODULE}/"
-        ext_alt_prefix = f"{MODULE}-{VERSION}.data/purelib/{MODULE}/"
-        for info in zf.infolist():
-          if not info.filename.endswith('.so'):
+          if info.is_dir():
             continue
-          for p in (ext_prefix, ext_alt_prefix):
-            if info.filename.startswith(p):
-              rel = info.filename[len(p):]
-              if rel and '/' not in rel:
-                dest = os.path.join(module_dir, rel)
-                os.makedirs(os.path.dirname(dest), exist_ok=True)
-                with open(dest, "wb") as f:
-                  f.write(zf.read(info))
-                if info.external_attr >> 16 & 0o111:
-                  os.chmod(dest, 0o755)
-              break
+          name = info.filename
+          if name.startswith(purelib_data):
+            rel = name[len(purelib_data):]
+          else:
+            rel = name
+          if "/" not in rel:
+            continue
+          top = rel.split("/", 1)[0]
+          if top not in TOP_PACKAGES:
+            continue
+          dest = os.path.join(_HERE, rel)
+          os.makedirs(os.path.dirname(dest), exist_ok=True)
+          with open(dest, "wb") as f:
+            f.write(zf.read(info))
+          if info.external_attr >> 16 & 0o111:
+            os.chmod(dest, 0o755)
 
     super().run()
 

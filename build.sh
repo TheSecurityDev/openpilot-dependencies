@@ -20,6 +20,8 @@ if [[ "$USE_MANYLINUX" == "1" && -z "${BUILD_SH_IN_MANYLINUX:-}" ]]; then
   docker run --rm \
     -e BUILD_SH_IN_MANYLINUX=1 \
     -e BUILD_SH_REUSE_MANYLINUX_ARTIFACTS="${BUILD_SH_REUSE_MANYLINUX_ARTIFACTS:-}" \
+    -e BUILD_SH_HOST_UID="$(id -u)" \
+    -e BUILD_SH_HOST_GID="$(id -g)" \
     -e HOME=/tmp \
     -e UV_CACHE_DIR=/work/.uv-cache \
     -e UV_PYTHON=/opt/python/cp312-cp312/bin/python3 \
@@ -68,6 +70,7 @@ echo
 echo "Running smoketests"
 
 uv venv --allow-existing --quiet "$VENV_DIR"
+uv pip install --python "$VENV_DIR/bin/python" --quiet "cffi>=1.17.1" >/dev/null
 uv pip install --python "$VENV_DIR/bin/python" --reinstall --no-deps --quiet dist/*.whl >/dev/null
 
 for toml in */pyproject.toml; do
@@ -79,3 +82,9 @@ du -hs dist/* | sort -hr
 
 echo
 echo "Done in $((SECONDS - START_SECS))s"
+
+# Hand workspace ownership back to the host runner so actions/cache can
+# tar everything we just produced (manylinux runs as root).
+if [[ -n "${BUILD_SH_IN_MANYLINUX:-}" && -n "${BUILD_SH_HOST_UID:-}" ]]; then
+  chown -R "$BUILD_SH_HOST_UID:${BUILD_SH_HOST_GID:-0}" "$ROOT_DIR"
+fi

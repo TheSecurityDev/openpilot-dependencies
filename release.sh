@@ -65,18 +65,37 @@ for toml in sorted(pathlib.Path(".").glob("*/pyproject.toml")):
   for py_file in src_mod.glob("*.py"):
     shutil.copy2(py_file, mod_dir / py_file.name)
 
-  # copy extra packages (e.g. pyray for raylib)
-  pkgs_val = data.get("tool", {}).get("setuptools", {}).get("packages", {})
-  include_patterns = pkgs_val.get("find", {}).get("include", []) if isinstance(pkgs_val, dict) else []
+  # copy extra packages (e.g. pyray for raylib, slim casadi for acados)
+  # binaries (.so/.dylib) are fetched from the wheel at install time, so the
+  # shim repo only carries Python sources to keep it small
+  def _ignore_binaries(_dir, names):
+    return [n for n in names if n.endswith((".so", ".dylib", ".a")) or ".so." in n or n == "__pycache__"]
+
+  # `packages` is either a flat list (["acados", "casadi"]) or a dict with
+  # `find.include` patterns (["acados*", "casadi*"]) — handle both
+  pkgs_val = data.get("tool", {}).get("setuptools", {}).get("packages", [])
+  if isinstance(pkgs_val, list):
+    include_patterns = list(pkgs_val)
+  elif isinstance(pkgs_val, dict):
+    include_patterns = pkgs_val.get("find", {}).get("include", [])
+  else:
+    include_patterns = []
   extra_packages = []
   for pattern in include_patterns:
     p = pattern.rstrip("*")
     if p and p != module and p != f"{module}/":
       src_extra = pathlib.Path(pkg) / p
+      dst_extra = pkg_dir / p
       if src_extra.is_dir():
-        dst_extra = pkg_dir / p
-        shutil.copytree(src_extra, dst_extra, dirs_exist_ok=True)
-        extra_packages.append(pattern)
+        shutil.copytree(src_extra, dst_extra, dirs_exist_ok=True, ignore=_ignore_binaries)
+      else:
+        # source not in the workspace (typically built lazily by build.sh and
+        # not cached into the publish job). Drop a placeholder __init__.py so
+        # setuptools.packages.find picks it up; the shim's setup.py overwrites
+        # it from the wheel at install time.
+        dst_extra.mkdir(parents=True, exist_ok=True)
+        (dst_extra / "__init__.py").write_text("")
+      extra_packages.append(pattern)
 
   shutil.copy2(shim_setup, pkg_dir / "setup.py")
 
@@ -102,14 +121,28 @@ for toml in sorted(pathlib.Path(".").glob("*/pyproject.toml")):
     for name, target in scripts.items():
       lines.append(f'"{name}" = {json.dumps(target)}')
 
-  find_include = [f"{module}*"] + extra_packages
+  # propagate the workspace's package-data so the shim wheel knows to ship
+  # everything the upstream wheel ships (e.g. acados_template/, casadi/*.so).
+  workspace_pkgdata = data.get("tool", {}).get("setuptools", {}).get("package-data", {})
+
+  # extra_packages may be plain names (["casadi"]) or globs (["casadi*"]).
+  # Normalise to plain package names for both `packages` and `package-data`.
+  extra_pkg_names = [p.rstrip("*").rstrip("/") for p in extra_packages]
+
   lines += [
     "",
-    "[tool.setuptools.packages.find]",
-    f"include = {json.dumps(find_include)}",
+    "[tool.setuptools]",
+    f"packages = {json.dumps([module] + extra_pkg_names)}",
     "",
     "[tool.setuptools.package-data]",
-    f'{module} = ["{datadir}/**/*", "*.so"]',
+  ]
+  module_data = sorted(set(workspace_pkgdata.get(module, [f"{datadir}/**/*"]) + ["*.so"]))
+  lines.append(f"{module} = {json.dumps(module_data)}")
+  for name in extra_pkg_names:
+    extra_data = workspace_pkgdata.get(name, ["**/*"])
+    lines.append(f"{name} = {json.dumps(list(extra_data))}")
+
+  lines += [
     "",
     "[tool.shim]",
     f'repo_url = "{repo_url}"',

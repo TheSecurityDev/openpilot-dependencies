@@ -1,7 +1,10 @@
 [tool.uv.workspace]
 members = [
+  "acados",
   "bzip2",
+  "bootstrap-icons",
   "capnproto",
+  "catch2",
   "cppcheck",
   "eigen",
   "ffmpeg",
@@ -13,10 +16,9 @@ members = [
   "libusb",
   "libjpeg",
   "libyuv",
-  "nanosvg",
   "ncurses",
-  "qt5",
   "raylib",
+  "xvfb",
   "zeromq",
   "zstd",
 ]
